@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Communication Board</title>
+    <!-- Load Tailwind CSS via CDN for single-file, self-contained application -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Using Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles to ensure Inter font usage and handle scrollbar hiding */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Hide scrollbar for category row but allow scrolling */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-indigo-50 p-4 sm:p-6">
+
+    <!-- Speaking Status Indicator (Initially hidden) -->
+    <div id="speaking-status" class="fixed top-0 left-0 right-0 p-3 bg-indigo-500 text-white text-center font-bold items-center justify-center space-x-2 shadow-lg z-10 hidden">
+        <svg class="animate-spin w-5 h-5 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.356-2A8.001 8.001 0 0019.418 15m0 0H15" />
+        </svg>
+        <span>Speaking...</span>
+    </div>
+
+    <!-- Header -->
+    <header class="mb-6">
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-center text-indigo-700 mb-2 tracking-tight">
+            Visual Communication Board
+        </h1>
+        <p class="text-center text-gray-500 font-medium">
+            Tap any card to hear the word.
+        </p>
+    </header>
+
+    <!-- Category Filter Buttons Container -->
+    <div id="category-filter-container" class="flex justify-center mb-6 overflow-x-auto whitespace-nowrap scrollbar-hide p-2 bg-white/50 rounded-xl shadow-inner mx-auto max-w-4xl">
+        <!-- Buttons will be generated here -->
+    </div>
+
+    <!-- Communication Cards Grid -->
+    <div id="card-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 mx-auto max-w-7xl pb-10">
+        <!-- Cards will be rendered here -->
+    </div>
+
+    <script>
+        // --- DATA STRUCTURE FOR COMMUNICATION BOARD ---
+        const ITEMS = [
+            // FOOD
+            { id: 1, word: "Apple", category: "Food", imageUrl: "https://placehold.co/200x200/c7f0d0/333333?text=APPLE" },
+            { id: 2, word: "Milk", category: "Food", imageUrl: "https://placehold.co/200x200/c7f0d0/333333?text=MILK" },
+            { id: 3, word: "Water", category: "Food", imageUrl: "https://placehold.co/200x200/c7f0d0/333333?text=WATER" },
+            { id: 4, word: "Cookie", category: "Food", imageUrl: "https://placehold.co/200x200/c7f0d0/333333?text=COOKIE" },
+            
+            // ACTIONS
+            { id: 5, word: "Play", category: "Action", imageUrl: "https://placehold.co/200x200/d0c7f0/333333?text=PLAY" },
+            { id: 6, word: "Go", category: "Action", imageUrl: "https://placehold.co/200x200/d0c7f0/333333?text=GO" },
+            { id: 7, word: "Stop", category: "Action", imageUrl: "https://placehold.co/200x200/d0c7f0/333333?text=STOP" },
+            { id: 8, word: "Help", category: "Action", imageUrl: "https://placehold.co/200x200/d0c7f0/333333?text=HELP" },
+
+            // NEEDS/FEELINGS
+            { id: 9, word: "More", category: "Need", imageUrl: "https://placehold.co/200x200/f0d0c7/333333?text=MORE" },
+            { id: 10, word: "Finished", category: "Need", imageUrl: "https://placehold.co/200x200/f0d0c7/333333?text=FINISHED" },
+            { id: 11, word: "Happy", category: "Need", imageUrl: "https://placehold.co/200x200/f0d0c7/333333?text=HAPPY" },
+            { id: 12, word: "Toilet", category: "Need", imageUrl: "https://placehold.co/200x200/f0d0c7/333333?text=TOILET" },
+
+            // TRANSPORT/ITEMS
+            { id: 13, word: "Car", category: "Item", imageUrl: "https://placehold.co/200x200/e7f0c7/333333?text=CAR" },
+            { id: 14, word: "Book", category: "Item", imageUrl: "https://placehold.co/200x200/e7f0c7/333333?text=BOOK" },
+            { id: 15, word: "Bike", category: "Item", imageUrl: "https://placehold.co/200x200/e7f0c7/333333?text=BIKE" },
+            
+            // PEOPLE
+            { id: 16, word: "Mommy", category: "People", imageUrl: "https://placehold.co/200x200/f0c7e7/333333?text=MOM" },
+            { id: 17, word: "Daddy", category: "People", imageUrl: "https://placehold.co/200x200/f0c7e7/333333?text=DAD" },
+            { id: 18, word: "Sister", category: "People", imageUrl: "https://placehold.co/200x200/f0c7e7/333333?text=SISTER" },
+        ];
+
+        const CATEGORIES = ["All", ...new Set(ITEMS.map(item => item.category))];
+        let selectedCategory = "All";
+
+        const cardGrid = document.getElementById('card-grid');
+        const categoryFilterContainer = document.getElementById('category-filter-container');
+        const speakingStatus = document.getElementById('speaking-status');
+        
+        let isSpeaking = false;
+        
+        // --- TEXT-TO-SPEECH FUNCTIONALITY ---
+        let voicesLoaded = false;
+        let selectedVoice = null;
+
+        function findPreferredVoice() {
+            const voices = speechSynthesis.getVoices();
+            // Prioritize a clear, female, or child-like US English voice for better clarity
+            const femaleUsVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google US English'));
+            const preferredVoice = voices.find(v => v.lang === 'en-US' && (v.name.includes('Female') || v.name.includes('Child'))) || femaleUsVoice;
+
+            return preferredVoice || voices.find(v => v.lang.startsWith('en-')) || voices[0];
+        }
+
+        function loadVoices() {
+            if (speechSynthesis.getVoices().length > 0) {
+                selectedVoice = findPreferredVoice();
+                voicesLoaded = true;
+            } else {
+                speechSynthesis.onvoiceschanged = () => {
+                    selectedVoice = findPreferredVoice();
+                    voicesLoaded = true;
+                    // Re-render filters/grid if they were waiting for voices
+                    if (!cardGrid.hasChildNodes()) {
+                        renderFilters();
+                        renderGrid();
+                    }
+                };
+            }
+        }
+        
+        function speak(text) {
+            if (isSpeaking || !voicesLoaded) return;
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0; 
+            utterance.pitch = 1.2; // Slightly elevated pitch for clearer audio
+            
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+
+            utterance.onstart = () => {
+                isSpeaking = true;
+                speakingStatus.classList.remove('hidden');
+                speakingStatus.classList.add('flex');
+            };
+            
+            const speechEnd = () => {
+                isSpeaking = false;
+                speakingStatus.classList.remove('flex');
+                speakingStatus.classList.add('hidden');
+            };
+
+            utterance.onend = speechEnd;
+            utterance.onerror = speechEnd; 
+            
+            speechSynthesis.cancel();
+            speechSynthesis.speak(utterance);
+        }
+        
+        // --- RENDERING FUNCTIONS ---
+
+        // Renders a single communication card
+        function renderCard(item) {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = "bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out transform hover:scale-[1.03] cursor-pointer ring-4 ring-transparent hover:ring-indigo-300 active:ring-indigo-500 flex flex-col p-2 h-full";
+            cardDiv.onclick = () => speak(item.word);
+            
+            cardDiv.innerHTML = `
+                <div class="flex-grow flex items-center justify-center p-2">
+                    <img 
+                        src="${item.imageUrl}"
+                        alt="${item.word}" 
+                        class="w-full h-auto max-h-40 object-contain p-2"
+                    />
+                </div>
+                <div class="p-1 mt-auto">
+                    <p class="text-center font-black text-2xl md:text-3xl text-gray-800 uppercase tracking-wider select-none">
+                        ${item.word}
+                    </p>
+                </div>
+            `;
+
+            return cardDiv;
+        }
+
+        // Filters items and renders the grid
+        function renderGrid() {
+            cardGrid.innerHTML = '';
+            
+            const filteredItems = selectedCategory === "All"
+                ? ITEMS
+                : ITEMS.filter(item => item.category === selectedCategory);
+
+            filteredItems.forEach(item => {
+                cardGrid.appendChild(renderCard(item));
+            });
+            
+            // Update button styles
+            document.querySelectorAll('.category-button').forEach(button => {
+                if (button.dataset.category === selectedCategory) {
+                    button.classList.replace('bg-gray-200', 'bg-indigo-600');
+                    button.classList.replace('text-gray-700', 'text-white');
+                    button.classList.add('shadow-indigo-400/50');
+                } else {
+                    button.classList.replace('bg-indigo-600', 'bg-gray-200');
+                    button.classList.replace('text-white', 'text-gray-700');
+                    button.classList.remove('shadow-indigo-400/50');
+                }
+            });
+        }
+
+        // Renders the category filter buttons
+        function renderFilters() {
+            categoryFilterContainer.innerHTML = '';
+            
+            CATEGORIES.forEach(category => {
+                const button = document.createElement('button');
+                button.textContent = category;
+                button.dataset.category = category;
+                button.className = 'category-button px-4 py-2 mx-1 rounded-lg font-bold text-sm sm:text-base shadow-md transition-colors duration-200 ease-in-out hover:bg-gray-300';
+                
+                button.onclick = () => {
+                    selectedCategory = category;
+                    renderGrid();
+                };
+
+                categoryFilterContainer.appendChild(button);
+            });
+        }
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            loadVoices(); // Load voices immediately
+            renderFilters();
+            renderGrid();
+        };
+
+    </script>
+</body>
+</html>
